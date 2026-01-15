@@ -3,6 +3,18 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+if [[ -x "/root/.local/share/mise/installs/java/21.0.2/bin/java" ]]; then
+  export JAVA_HOME="/root/.local/share/mise/installs/java/21.0.2"
+  JAVA_BIN="$JAVA_HOME/bin/java"
+elif [[ -x "/usr/lib/jvm/java-21-openjdk-amd64/bin/java" ]]; then
+  export JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
+  JAVA_BIN="$JAVA_HOME/bin/java"
+elif [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
+  JAVA_BIN="$JAVA_HOME/bin/java"
+else
+  JAVA_BIN="java"
+fi
+
 if ! command -v gradle >/dev/null 2>&1; then
   "$ROOT_DIR/scripts/bootstrap-gradle.sh" >/dev/null
   GRADLE_BIN="$ROOT_DIR/.tooling/gradle/gradle-8.6/bin/gradle"
@@ -31,16 +43,21 @@ mkdir -p "$MAIN_OUT" "$TEST_OUT" "$INTEGRATION_OUT"
 
 MAIN_SOURCES=$(find "$ROOT_DIR/app/src/main/kotlin" -name "*.kt")
 TEST_SOURCES=$(find "$ROOT_DIR/app/src/test/kotlin" -name "*.kt")
-INTEGRATION_SOURCES=$(find "$ROOT_DIR/app/src/integrationTest/kotlin" -name "*.kt" || true)
+INTEGRATION_DIR="$ROOT_DIR/app/src/integrationTest/kotlin"
+if [[ -d "$INTEGRATION_DIR" ]]; then
+  INTEGRATION_SOURCES=$(find "$INTEGRATION_DIR" -name "*.kt")
+else
+  INTEGRATION_SOURCES=""
+fi
 
-java -cp "$CLASSPATH" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
+"$JAVA_BIN" -cp "$CLASSPATH" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
   -d "$MAIN_OUT" \
   -jvm-target 21 \
   -no-stdlib -no-reflect \
   -classpath "$KOTLIN_STDLIB_JAR:$KOTLIN_REFLECT_JAR" \
   $MAIN_SOURCES
 
-java -cp "$CLASSPATH" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
+"$JAVA_BIN" -cp "$CLASSPATH" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
   -d "$TEST_OUT" \
   -jvm-target 21 \
   -no-stdlib -no-reflect \
@@ -48,7 +65,7 @@ java -cp "$CLASSPATH" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
   $TEST_SOURCES
 
 if [[ -n "${INTEGRATION_SOURCES// }" ]]; then
-  java -cp "$CLASSPATH" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
+  "$JAVA_BIN" -cp "$CLASSPATH" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
     -d "$INTEGRATION_OUT" \
     -jvm-target 21 \
     -no-stdlib -no-reflect \
